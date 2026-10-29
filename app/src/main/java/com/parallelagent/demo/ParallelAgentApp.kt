@@ -3,6 +3,7 @@ package com.parallelagent.demo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -19,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -242,12 +242,13 @@ private fun InputBar(
                 onClick = onSend,
                 enabled = !inputLocked && input.isNotBlank(),
                 modifier = Modifier.size(52.dp),
-                contentPadding = ButtonDefaults.ContentPadding,
+                contentPadding = PaddingValues(0.dp),
                 shape = CircleShape,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "发送",
+                    modifier = Modifier.size(24.dp),
                 )
             }
         }
