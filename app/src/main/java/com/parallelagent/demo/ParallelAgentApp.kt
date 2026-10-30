@@ -100,18 +100,31 @@ fun ParallelAgentApp() {
                 ?: initialConversations.first().state,
         )
     }
+    var previousTurns by remember {
+        mutableStateOf(
+            initialConversations.firstOrNull { it.id == activeConversationId }?.previousTurns.orEmpty(),
+        )
+    }
     var input by rememberSaveable { mutableStateOf("") }
 
-    fun setConversationState(nextState: TaskState) {
+    fun setConversationState(
+        nextState: TaskState,
+        nextPreviousTurns: List<TaskState> = previousTurns,
+    ) {
         val now = System.currentTimeMillis()
         val updated = conversations.map { conversation ->
             if (conversation.id == activeConversationId) {
-                conversation.copy(updatedAt = now, state = nextState)
+                conversation.copy(
+                    updatedAt = now,
+                    previousTurns = nextPreviousTurns,
+                    state = nextState,
+                )
             } else {
                 conversation
             }
         }.sortedByDescending(ConversationRecord::updatedAt)
         state = nextState
+        previousTurns = nextPreviousTurns
         conversations = updated
         store.save(updated)
     }
@@ -124,6 +137,7 @@ fun ParallelAgentApp() {
         if (state.stage.isBusy) return
         activeConversationId = conversation.id
         state = conversation.state
+        previousTurns = conversation.previousTurns
         input = ""
         scope.launch { drawerState.close() }
     }
@@ -136,6 +150,7 @@ fun ParallelAgentApp() {
         if (existingEmpty != null) {
             activeConversationId = existingEmpty.id
             state = existingEmpty.state
+            previousTurns = existingEmpty.previousTurns
             input = ""
             scope.launch { drawerState.close() }
             return
@@ -145,6 +160,7 @@ fun ParallelAgentApp() {
         conversations = updated
         activeConversationId = conversation.id
         state = conversation.state
+        previousTurns = conversation.previousTurns
         input = ""
         store.save(updated)
         scope.launch { drawerState.close() }
@@ -196,28 +212,33 @@ fun ParallelAgentApp() {
                 )
             },
             bottomBar = {
-                if (!state.stage.isTerminal) {
-                    InputBar(
-                        input = input,
-                        inputLocked = state.stage == TaskStage.UNDERSTANDING ||
-                            state.stage == TaskStage.WAITING_CONFIRMATION ||
-                            state.stage == TaskStage.RUNNING,
-                        placeholderText = when (state.stage) {
-                            TaskStage.UNDERSTANDING -> "正在整理你的需求…"
-                            TaskStage.WAITING_CONFIRMATION -> "请先确认上方计划"
-                            TaskStage.RUNNING -> "正在为你处理…"
-                            else -> "说说你想完成什么"
-                        },
-                        onInputChange = { input = it },
-                        onSend = {
+                InputBar(
+                    input = input,
+                    inputLocked = state.stage == TaskStage.UNDERSTANDING ||
+                        state.stage == TaskStage.WAITING_CONFIRMATION ||
+                        state.stage == TaskStage.RUNNING,
+                    placeholderText = when (state.stage) {
+                        TaskStage.UNDERSTANDING -> "正在整理你的需求…"
+                        TaskStage.WAITING_CONFIRMATION -> "请先确认上方计划"
+                        TaskStage.RUNNING -> "正在为你处理…"
+                        TaskStage.RESULT, TaskStage.FAILED, TaskStage.STOPPED -> "继续说说你想完成什么"
+                        else -> "说说你想完成什么"
+                    },
+                    onInputChange = { input = it },
+                    onSend = {
+                        if (state.stage.isTerminal) {
+                            val nextState = reduceTaskState(TaskState(), TaskAction.Submit(input))
+                            setConversationState(nextState, previousTurns + state)
+                        } else {
                             dispatch(TaskAction.Submit(input))
-                            input = ""
-                        },
-                    )
-                }
+                        }
+                        input = ""
+                    },
+                )
             },
         ) { paddingValues ->
             ConversationContent(
+                previousTurns = previousTurns,
                 state = state,
                 modifier = Modifier.fillMaxSize().padding(paddingValues),
                 onFillExample = {

@@ -112,6 +112,36 @@ class TaskFlowTest {
         assertTrue(restored.state.message.contains("中断"))
     }
 
+    @Test
+    fun conversationHistory_preservesPreviousTurnsWhenConversationContinues() {
+        val completedTurn = TaskState(
+            stage = TaskStage.RESULT,
+            request = "创建旅行清单",
+            task = createTask(),
+            message = "笔记已创建",
+            completedSteps = 3,
+        )
+        val currentTurn = TaskState(
+            stage = TaskStage.CLARIFYING,
+            request = "再创建一条笔记",
+            lastUserMessage = "再创建一条笔记",
+            message = "需要记录什么内容？",
+        )
+        val conversation = ConversationRecord(
+            id = "conversation-3",
+            updatedAt = 9012L,
+            previousTurns = listOf(completedTurn),
+            state = currentTurn,
+        )
+
+        val restored = ConversationRecord.fromJson(conversation.toJson())
+
+        assertEquals(1, restored.previousTurns.size)
+        assertEquals(TaskStage.RESULT, restored.previousTurns.single().stage)
+        assertEquals(TaskStage.CLARIFYING, restored.state.stage)
+        assertEquals("旅行清单", restored.title)
+    }
+
     private fun createTask(): TaskSpec = TaskSpec(
         schemaVersion = 2,
         taskVersion = "task-v1",

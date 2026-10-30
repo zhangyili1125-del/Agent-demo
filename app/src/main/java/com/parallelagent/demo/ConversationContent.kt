@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,6 +32,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,6 +45,7 @@ private val Red = Color(0xFFCF4B3E)
 
 @Composable
 internal fun ConversationContent(
+    previousTurns: List<TaskState>,
     state: TaskState,
     modifier: Modifier = Modifier,
     onFillExample: () -> Unit,
@@ -49,7 +53,7 @@ internal fun ConversationContent(
     onStop: () -> Unit,
     onNewConversation: () -> Unit,
 ) {
-    if (state.stage == TaskStage.IDLE) {
+    if (previousTurns.isEmpty() && state.stage == TaskStage.IDLE) {
         Box(modifier = modifier.padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Surface(
@@ -103,11 +107,23 @@ internal fun ConversationContent(
         return
     }
 
+    val listState = rememberLazyListState()
+    LaunchedEffect(previousTurns.size, state.stage, state.lastUserMessage) {
+        withFrameNanos { }
+        val lastIndex = listState.layoutInfo.totalItemsCount - 1
+        if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
+    }
+
     LazyColumn(
+        state = listState,
         modifier = modifier,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        previousTurns.forEach { previousTurn ->
+            item { UserMessage(previousTurn.lastUserMessage.ifBlank { previousTurn.request }) }
+            item { HistoricalTurn(previousTurn) }
+        }
         item { UserMessage(state.lastUserMessage.ifBlank { state.request }) }
 
         when (state.stage) {
@@ -155,6 +171,21 @@ internal fun ConversationContent(
                 }
             }
             TaskStage.IDLE -> Unit
+        }
+    }
+}
+
+@Composable
+private fun HistoricalTurn(turn: TaskState) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        turn.task?.let { task ->
+            TaskSpecCard(task)
+            if (turn.stage == TaskStage.RESULT) ResultCard(task)
+        }
+        when (turn.stage) {
+            TaskStage.FAILED -> AgentCard("这次没有完成", Red) { Text(turn.message) }
+            TaskStage.STOPPED -> AgentCard("已取消", Red) { Text("这项任务没有开始执行。") }
+            else -> Unit
         }
     }
 }

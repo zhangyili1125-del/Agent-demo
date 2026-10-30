@@ -8,13 +8,17 @@ import java.util.UUID
 internal data class ConversationRecord(
     val id: String,
     val updatedAt: Long,
+    val previousTurns: List<TaskState> = emptyList(),
     val state: TaskState,
 ) {
     val title: String
-        get() = state.task?.noteTitle
+        get() = titleState.task?.noteTitle
             ?.takeIf(String::isNotBlank)
-            ?: state.request.substringBefore("\n").trim().takeIf(String::isNotBlank)?.take(24)
+            ?: titleState.request.substringBefore("\n").trim().takeIf(String::isNotBlank)?.take(24)
             ?: "新对话"
+
+    private val titleState: TaskState
+        get() = previousTurns.firstOrNull() ?: state
 
     val statusLabel: String
         get() = when (state.stage) {
@@ -31,6 +35,10 @@ internal data class ConversationRecord(
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
         .put("updatedAt", updatedAt)
+        .put(
+            "previousTurns",
+            JSONArray().apply { previousTurns.forEach { put(it.toHistoryJson()) } },
+        )
         .put("state", state.toHistoryJson())
 
     companion object {
@@ -43,6 +51,9 @@ internal data class ConversationRecord(
         fun fromJson(json: JSONObject): ConversationRecord = ConversationRecord(
             id = json.getString("id"),
             updatedAt = json.getLong("updatedAt"),
+            previousTurns = json.optJSONArray("previousTurns")?.let { array ->
+                (0 until array.length()).map { taskStateFromHistoryJson(array.getJSONObject(it)) }
+            }.orEmpty(),
             state = taskStateFromHistoryJson(json.getJSONObject("state")),
         )
     }
