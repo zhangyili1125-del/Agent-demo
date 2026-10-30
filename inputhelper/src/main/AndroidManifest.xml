@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:label="Parallel Agent Input Helper"
+        android:supportsRtl="true">
+        <receiver
+            android:name=".ClipboardReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.parallelagent.inputhelper.SET_TEXT" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

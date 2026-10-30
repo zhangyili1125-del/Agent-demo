@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ParallelAgent"
 include(":app")
+include(":inputhelper")

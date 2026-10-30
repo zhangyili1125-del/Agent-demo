@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -41,28 +42,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
+import org.json.JSONObject
 
 internal val BrandBlue = Color(0xFF335CFF)
 internal val Canvas = Color(0xFFF7F8FC)
-internal val DemoOrange = Color(0xFFFFF0DC)
-internal val DemoOrangeText = Color(0xFF8A4B00)
 
-private val DemoStateSaver = listSaver<DemoState, Any>(
-    save = {
+private val TaskStateSaver = listSaver<TaskState, Any>(
+    save = { state ->
         listOf(
-            it.stage.name,
-            it.request,
-            it.completedSteps,
-            it.lastProgressStage.name,
+            state.stage.name,
+            state.request,
+            state.lastUserMessage,
+            state.message,
+            state.completedSteps,
+            state.task?.toJson()?.toString().orEmpty(),
         )
     },
-    restore = {
-        DemoState(
-            stage = DemoStage.valueOf(it[0] as String),
-            request = it[1] as String,
-            completedSteps = it[2] as Int,
-            lastProgressStage = DemoStage.valueOf(it[3] as String),
+    restore = { values ->
+        val taskJson = values[5] as String
+        TaskState(
+            stage = TaskStage.valueOf(values[0] as String),
+            request = values[1] as String,
+            lastUserMessage = values[2] as String,
+            message = values[3] as String,
+            completedSteps = values[4] as Int,
+            task = taskJson.takeIf(String::isNotEmpty)?.let {
+                TaskSpec.fromJson(JSONObject(it))
+            },
         )
     },
 )
@@ -81,40 +87,37 @@ fun ParallelAgentTheme(content: @Composable () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParallelAgentApp(
-    scenario: DemoScenario = PlaceholderScenario,
-) {
+fun ParallelAgentApp() {
+    val apiClient = remember { TaskApiClient() }
+    val interpreter = remember(apiClient) { RemoteTaskInterpreter(apiClient) }
     var input by rememberSaveable { mutableStateOf("") }
-    var demoState by rememberSaveable(stateSaver = DemoStateSaver) {
-        mutableStateOf(DemoState())
+    var state by rememberSaveable(stateSaver = TaskStateSaver) {
+        mutableStateOf(TaskState())
     }
 
-    fun dispatch(action: DemoAction) {
-        demoState = reduceDemoState(demoState, action)
+    fun dispatch(action: TaskAction) {
+        state = reduceTaskState(state, action)
     }
 
-    LaunchedEffect(demoState.stage, demoState.completedSteps) {
-        when (demoState.stage) {
-            DemoStage.UNDERSTANDING -> {
-                delay(900)
-                dispatch(DemoAction.UnderstandingCompleted)
-            }
+    LaunchedEffect(state.stage, state.request) {
+        if (state.stage == TaskStage.UNDERSTANDING) {
+            dispatch(TaskAction.Interpreted(interpreter.interpret(state.request)))
+        }
+    }
 
-            DemoStage.READY_TO_ACT -> {
-                delay(700)
-                dispatch(DemoAction.CapabilityPrepared)
-            }
-
-            DemoStage.RUNNING -> {
-                delay(900)
-                dispatch(
-                    DemoAction.ExecutionStepCompleted(
-                        totalSteps = scenario.executionSteps.size,
-                    ),
-                )
-            }
-
-            else -> Unit
+    LaunchedEffect(state.stage, state.task?.taskVersion) {
+        val task = state.task
+        if (state.stage == TaskStage.RUNNING && task != null) {
+            apiClient.execute(task).fold(
+                onSuccess = { dispatch(TaskAction.ExecutionSucceeded(it)) },
+                onFailure = {
+                    dispatch(
+                        TaskAction.ExecutionFailed(
+                            it.message ?: "无法连接电脑执行端，请检查 USB 连接和执行服务。",
+                        ),
+                    )
+                },
+            )
         }
     }
 
@@ -123,106 +126,75 @@ fun ParallelAgentApp(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            AppHeader(
-                stage = demoState.stage,
-                onStop = { dispatch(DemoAction.Stop) },
-            )
+            AppHeader(stage = state.stage, onStop = { dispatch(TaskAction.Stop) })
         },
         bottomBar = {
             InputBar(
                 input = input,
-                exampleRequest = scenario.exampleRequest,
-                inputLocked = demoState.stage.canStop,
+                inputLocked = state.stage == TaskStage.UNDERSTANDING ||
+                    state.stage == TaskStage.WAITING_CONFIRMATION ||
+                    state.stage == TaskStage.RUNNING,
                 onInputChange = { input = it },
                 onSend = {
-                    dispatch(DemoAction.Submit(input))
+                    dispatch(TaskAction.Submit(input))
                     input = ""
                 },
             )
         },
     ) { paddingValues ->
         ConversationContent(
-            state = demoState,
-            scenario = scenario,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            onFillExample = { input = scenario.exampleRequest },
-            onConfirm = { dispatch(DemoAction.Confirm) },
-            onStop = { dispatch(DemoAction.Stop) },
-            onReset = { dispatch(DemoAction.Reset) },
+            state = state,
+            modifier = Modifier.fillMaxSize().padding(paddingValues),
+            onFillExample = {
+                input = "帮我记一下，周末要整理房间，还要买些水果"
+            },
+            onConfirm = { version -> dispatch(TaskAction.Confirm(version)) },
+            onStop = { dispatch(TaskAction.Stop) },
+            onReset = { dispatch(TaskAction.Reset) },
         )
     }
 }
 
 @Composable
-private fun AppHeader(
-    stage: DemoStage,
-    onStop: () -> Unit,
-) {
+private fun AppHeader(stage: TaskStage, onStop: () -> Unit) {
     Surface(shadowElevation = 1.dp) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
+            modifier = Modifier.fillMaxWidth().statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .background(stage.statusColor(), CircleShape),
-            )
+            Box(modifier = Modifier.size(10.dp).background(stage.statusColor(), CircleShape))
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Parallel Agent",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stage.statusText(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                Text("Parallel Agent", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(stage.statusText(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
             }
             if (stage.canStop) {
-                TextButton(onClick = onStop) {
-                    Text("停止")
-                }
+                TextButton(onClick = onStop) { Text("停止") }
             }
-            DemoModeBadge()
+            Surface(color = Color(0xFFE8F7EF), shape = RoundedCornerShape(999.dp)) {
+                Text(
+                    "真实执行",
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    color = Color(0xFF176B45),
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
-    }
-}
-
-@Composable
-internal fun DemoModeBadge() {
-    Surface(color = DemoOrange, shape = RoundedCornerShape(999.dp)) {
-        Text(
-            text = "演示模式",
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            color = DemoOrangeText,
-            fontWeight = FontWeight.SemiBold,
-            style = MaterialTheme.typography.labelSmall,
-        )
     }
 }
 
 @Composable
 private fun InputBar(
     input: String,
-    exampleRequest: String,
     inputLocked: Boolean,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
 ) {
     Surface(shadowElevation = 8.dp) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .navigationBarsPadding()
+            modifier = Modifier.fillMaxWidth().imePadding().navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -231,9 +203,7 @@ private fun InputBar(
                 onValueChange = onInputChange,
                 enabled = !inputLocked,
                 modifier = Modifier.weight(1f),
-                placeholder = {
-                    Text(if (inputLocked) "任务进行中…" else exampleRequest)
-                },
+                placeholder = { Text(if (inputLocked) "任务处理中…" else "用自然语言告诉我你想做什么") },
                 maxLines = 4,
                 shape = RoundedCornerShape(20.dp),
             )
@@ -241,33 +211,34 @@ private fun InputBar(
             Button(
                 onClick = onSend,
                 enabled = !inputLocked && input.isNotBlank(),
-                modifier = Modifier.size(52.dp),
+                modifier = Modifier.size(56.dp),
                 contentPadding = PaddingValues(0.dp),
                 shape = CircleShape,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "发送",
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(30.dp),
                 )
             }
         }
     }
 }
 
-private fun DemoStage.statusText(): String = when (this) {
-    DemoStage.IDLE -> "待命"
-    DemoStage.UNDERSTANDING -> "正在理解任务"
-    DemoStage.READY_TO_ACT -> "正在准备能力"
-    DemoStage.WAITING_CONFIRMATION -> "等待你确认"
-    DemoStage.RUNNING -> "正在执行"
-    DemoStage.RESULT -> "已完成"
-    DemoStage.STOPPED -> "已停止"
+private fun TaskStage.statusText(): String = when (this) {
+    TaskStage.IDLE -> "待命"
+    TaskStage.UNDERSTANDING -> "正在理解任务"
+    TaskStage.CLARIFYING -> "需要补充信息"
+    TaskStage.WAITING_CONFIRMATION -> "等待你确认"
+    TaskStage.RUNNING -> "虚拟手机正在执行"
+    TaskStage.RESULT -> "真实任务已完成"
+    TaskStage.FAILED -> "任务未完成"
+    TaskStage.STOPPED -> "已停止"
 }
 
-private fun DemoStage.statusColor(): Color = when (this) {
-    DemoStage.STOPPED -> Color(0xFFCF4B3E)
-    DemoStage.RESULT -> Color(0xFF22A06B)
-    DemoStage.IDLE -> Color(0xFF7A869A)
+private fun TaskStage.statusColor(): Color = when (this) {
+    TaskStage.STOPPED, TaskStage.FAILED -> Color(0xFFCF4B3E)
+    TaskStage.RESULT -> Color(0xFF22A06B)
+    TaskStage.IDLE -> Color(0xFF7A869A)
     else -> BrandBlue
 }

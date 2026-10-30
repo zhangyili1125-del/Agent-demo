@@ -17,3 +17,5 @@ captures/
 *.jks
 *.keystore
 keystore.properties
+skills/
+coaching_state.md
