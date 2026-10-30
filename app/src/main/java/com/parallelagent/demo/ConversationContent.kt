@@ -134,7 +134,7 @@ private fun TaskSpecCard(task: TaskSpec) {
         DetailLine("正文", task.noteBody)
         Text("执行步骤", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
         task.steps.sortedBy(TaskStep::order).forEach { step ->
-            StatusLine("${step.order}. ${step.action.displayName()} · ${step.capability}", BrandBlue)
+            StatusLine("${step.order}. ${step.action.displayName()}", BrandBlue)
             Spacer(Modifier.height(6.dp))
         }
         Spacer(Modifier.height(4.dp))
@@ -150,7 +150,7 @@ private fun ConfirmationCard(
     onStop: () -> Unit,
 ) {
     AgentCard("需要你确认") {
-        Text("创建笔记会改变测试账号中的数据。是否按上面的内容创建？")
+        Text("将在 Standard Notes 测试账号中新建一条真实笔记。是否按上面的内容创建？")
         Spacer(Modifier.height(12.dp))
         when (state.stage) {
             TaskStage.WAITING_CONFIRMATION -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -168,10 +168,10 @@ private fun RunningCard(task: TaskSpec) {
     AgentCard("执行进度") {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
-        StatusLine("电脑执行端已收到任务", Green)
+        StatusLine("独立虚拟手机已收到任务", Green)
         task.steps.sortedBy(TaskStep::order).forEach { step ->
             Spacer(Modifier.height(8.dp))
-            StatusLine("计划步骤：${step.action.displayName()}", BrandBlue)
+            StatusLine("正在执行：${step.action.displayName()}", BrandBlue)
         }
         Spacer(Modifier.height(12.dp))
         Text("任务发送后不提供中途停止，避免界面停在不确定状态。", color = MaterialTheme.colorScheme.onSurfaceVariant)
