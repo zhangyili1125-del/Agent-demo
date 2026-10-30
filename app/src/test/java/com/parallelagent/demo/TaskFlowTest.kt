@@ -72,6 +72,46 @@ class TaskFlowTest {
         assertSame(stopped, late)
     }
 
+    @Test
+    fun conversationHistory_roundTripsWithoutLosingTaskResult() {
+        val saved = ConversationRecord(
+            id = "conversation-1",
+            updatedAt = 1234L,
+            state = TaskState(
+                stage = TaskStage.RESULT,
+                request = "帮我记录旅行用品",
+                lastUserMessage = "帮我记录旅行用品",
+                task = createTask(),
+                message = "笔记已创建",
+                completedSteps = 3,
+            ),
+        )
+
+        val restored = ConversationRecord.fromJson(saved.toJson())
+
+        assertEquals(saved, restored)
+        assertEquals("旅行清单", restored.title)
+        assertEquals(TaskStage.RESULT, restored.state.stage)
+    }
+
+    @Test
+    fun interruptedRunningConversation_doesNotExecuteAgainAfterRestore() {
+        val running = ConversationRecord(
+            id = "conversation-2",
+            updatedAt = 5678L,
+            state = TaskState(
+                stage = TaskStage.RUNNING,
+                request = "帮我记录旅行用品",
+                task = createTask(),
+            ),
+        )
+
+        val restored = ConversationRecord.fromJson(running.toJson())
+
+        assertEquals(TaskStage.FAILED, restored.state.stage)
+        assertTrue(restored.state.message.contains("中断"))
+    }
+
     private fun createTask(): TaskSpec = TaskSpec(
         schemaVersion = 2,
         taskVersion = "task-v1",

@@ -47,7 +47,7 @@ internal fun ConversationContent(
     onFillExample: () -> Unit,
     onConfirm: (String) -> Unit,
     onStop: () -> Unit,
-    onReset: () -> Unit,
+    onNewConversation: () -> Unit,
 ) {
     if (state.stage == TaskStage.IDLE) {
         Box(modifier = modifier.padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
@@ -133,7 +133,7 @@ internal fun ConversationContent(
                     item { ConfirmationCard(task, onConfirm, onStop) }
                 }
                 if (state.stage == TaskStage.RUNNING) item { RunningCard() }
-                if (state.stage == TaskStage.RESULT && task != null) item { ResultCard(task, onReset) }
+                if (state.stage == TaskStage.RESULT && task != null) item { ResultCard(task) }
             }
             TaskStage.FAILED -> item {
                 AgentCard("这次没有完成", Red) {
@@ -144,14 +144,14 @@ internal fun ConversationContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = onReset) { Text("重新开始") }
+                    OutlinedButton(onClick = onNewConversation) { Text("新建对话") }
                 }
             }
             TaskStage.STOPPED -> item {
                 AgentCard("已取消", Red) {
                     Text("这项任务没有开始执行。")
                     Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = onReset) { Text("返回首页") }
+                    OutlinedButton(onClick = onNewConversation) { Text("新建对话") }
                 }
             }
             TaskStage.IDLE -> Unit
@@ -227,7 +227,7 @@ private fun RunningCard() {
 }
 
 @Composable
-private fun ResultCard(task: TaskSpec, onReset: () -> Unit) {
+private fun ResultCard(task: TaskSpec) {
     AgentCard("笔记已创建", Green) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -244,8 +244,6 @@ private fun ResultCard(task: TaskSpec, onReset: () -> Unit) {
             "标题和内容已经核对。",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(14.dp))
-        OutlinedButton(onClick = onReset) { Text("继续添加") }
     }
 }
 
