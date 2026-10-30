@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -45,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import org.json.JSONObject
 
 internal val BrandBlue = Color(0xFF335CFF)
-internal val Canvas = Color(0xFFF7F8FC)
+internal val Canvas = Color(0xFFF8F9FD)
 
 private val TaskStateSaver = listSaver<TaskState, Any>(
     save = { state ->
@@ -78,8 +79,13 @@ fun ParallelAgentTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = lightColorScheme(
             primary = BrandBlue,
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFE8ECFF),
+            onPrimaryContainer = Color(0xFF142B8C),
             background = Canvas,
             surface = Color.White,
+            surfaceVariant = Color(0xFFF0F2F8),
+            outlineVariant = Color(0xFFDDE2EC),
         ),
         content = content,
     )
@@ -113,7 +119,7 @@ fun ParallelAgentApp() {
                 onFailure = {
                     dispatch(
                         TaskAction.ExecutionFailed(
-                            it.message ?: "无法连接电脑执行端，请检查 USB 连接和执行服务。",
+                            it.message ?: "暂时无法连接任务服务，请稍后重试。",
                         ),
                     )
                 },
@@ -134,6 +140,12 @@ fun ParallelAgentApp() {
                 inputLocked = state.stage == TaskStage.UNDERSTANDING ||
                     state.stage == TaskStage.WAITING_CONFIRMATION ||
                     state.stage == TaskStage.RUNNING,
+                placeholderText = when (state.stage) {
+                    TaskStage.UNDERSTANDING -> "正在整理你的需求…"
+                    TaskStage.WAITING_CONFIRMATION -> "请先确认上方计划"
+                    TaskStage.RUNNING -> "正在为你处理…"
+                    else -> "说说你想完成什么"
+                },
                 onInputChange = { input = it },
                 onSend = {
                     dispatch(TaskAction.Submit(input))
@@ -163,23 +175,31 @@ private fun AppHeader(stage: TaskStage, onStop: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(modifier = Modifier.size(10.dp).background(stage.statusColor(), CircleShape))
-            Spacer(modifier = Modifier.width(10.dp))
+            Surface(
+                modifier = Modifier.size(40.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = CircleShape,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(21.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text("Parallel Agent", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(stage.statusText(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(7.dp).background(stage.statusColor(), CircleShape))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(stage.statusText(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                }
             }
             if (stage.canStop) {
-                TextButton(onClick = onStop) { Text("停止") }
-            }
-            Surface(color = Color(0xFFE8F7EF), shape = RoundedCornerShape(999.dp)) {
-                Text(
-                    "真实执行",
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    color = Color(0xFF176B45),
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.labelSmall,
-                )
+                TextButton(onClick = onStop) { Text("取消") }
             }
         }
     }
@@ -189,6 +209,7 @@ private fun AppHeader(stage: TaskStage, onStop: () -> Unit) {
 private fun InputBar(
     input: String,
     inputLocked: Boolean,
+    placeholderText: String,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
 ) {
@@ -203,7 +224,7 @@ private fun InputBar(
                 onValueChange = onInputChange,
                 enabled = !inputLocked,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text(if (inputLocked) "任务处理中…" else "用自然语言告诉我你想做什么") },
+                placeholder = { Text(placeholderText) },
                 maxLines = 4,
                 shape = RoundedCornerShape(20.dp),
             )
@@ -226,14 +247,14 @@ private fun InputBar(
 }
 
 private fun TaskStage.statusText(): String = when (this) {
-    TaskStage.IDLE -> "待命"
-    TaskStage.UNDERSTANDING -> "正在理解任务"
-    TaskStage.CLARIFYING -> "需要补充信息"
-    TaskStage.WAITING_CONFIRMATION -> "等待你确认"
-    TaskStage.RUNNING -> "虚拟手机正在执行"
-    TaskStage.RESULT -> "真实任务已完成"
-    TaskStage.FAILED -> "任务未完成"
-    TaskStage.STOPPED -> "已停止"
+    TaskStage.IDLE -> "随时可以开始"
+    TaskStage.UNDERSTANDING -> "正在整理你的需求"
+    TaskStage.CLARIFYING -> "等待你补充"
+    TaskStage.WAITING_CONFIRMATION -> "计划已准备好"
+    TaskStage.RUNNING -> "正在为你处理"
+    TaskStage.RESULT -> "任务已完成"
+    TaskStage.FAILED -> "遇到了一点问题"
+    TaskStage.STOPPED -> "任务已取消"
 }
 
 private fun TaskStage.statusColor(): Color = when (this) {

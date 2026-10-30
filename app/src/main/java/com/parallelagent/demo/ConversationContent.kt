@@ -17,22 +17,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 private val Green = Color(0xFF22A06B)
 private val Red = Color(0xFFCF4B3E)
@@ -47,23 +49,54 @@ internal fun ConversationContent(
     onReset: () -> Unit,
 ) {
     if (state.stage == TaskStage.IDLE) {
-        Box(modifier = modifier.padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = modifier.padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Surface(modifier = Modifier.size(64.dp), color = BrandBlue, shape = RoundedCornerShape(20.dp)) {
+                Surface(
+                    modifier = Modifier.size(72.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(24.dp),
+                ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("P", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(34.dp),
+                        )
                     }
                 }
                 Spacer(Modifier.height(24.dp))
-                Text("描述你的手机任务", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "今天想让手机帮你做什么？",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "大模型会理解自然语言并生成分步计划。当前已开放的真实能力是创建 Standard Notes 笔记。",
+                    "用一句话描述目标，我会先整理步骤，需要时再请你确认。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyLarge,
                 )
-                Spacer(Modifier.height(18.dp))
-                TextButton(onClick = onFillExample) { Text("填入示例任务") }
+                Spacer(Modifier.height(16.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(50),
+                ) {
+                    Text(
+                        "目前支持 · 创建笔记",
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+                OutlinedButton(onClick = onFillExample) { Text("试试：记下周末待办") }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "开始前，你可以查看并确认完整计划。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
         return
@@ -78,43 +111,44 @@ internal fun ConversationContent(
 
         when (state.stage) {
             TaskStage.UNDERSTANDING -> item {
-                AgentCard("大模型正在理解") { Text("正在识别目标、补全参数并规划可核验的执行步骤…") }
+                AgentCard("正在整理你的需求") {
+                    Text("我会把目标和内容整理成一份清晰的计划。")
+                }
             }
             TaskStage.CLARIFYING -> item {
                 AgentCard("还需要一项信息") {
                     Text(state.message)
                     Spacer(Modifier.height(12.dp))
-                    Text("请直接在下方输入框补充，我会结合上一条请求继续理解。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "请直接在下方补充，我会接着刚才的内容继续处理。",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
             TaskStage.WAITING_CONFIRMATION, TaskStage.RUNNING, TaskStage.RESULT -> {
                 val task = state.task
-                if (task != null) {
-                    item { TaskSpecCard(task) }
-                    item {
-                        ConfirmationCard(
-                            state = state,
-                            task = task,
-                            onConfirm = onConfirm,
-                            onStop = onStop,
-                        )
-                    }
+                if (task != null) item { TaskSpecCard(task) }
+                if (state.stage == TaskStage.WAITING_CONFIRMATION && task != null) {
+                    item { ConfirmationCard(task, onConfirm, onStop) }
                 }
-                if (state.stage == TaskStage.RUNNING && task != null) item { RunningCard(task) }
-                if (state.stage == TaskStage.RESULT) item { ResultCard(state, onReset) }
+                if (state.stage == TaskStage.RUNNING) item { RunningCard() }
+                if (state.stage == TaskStage.RESULT && task != null) item { ResultCard(task, onReset) }
             }
             TaskStage.FAILED -> item {
-                AgentCard("任务没有完成", Red) {
+                AgentCard("这次没有完成", Red) {
                     Text(state.message)
                     Spacer(Modifier.height(10.dp))
-                    Text("没有把失败显示成成功。请检查电脑模型服务、API key、USB 连接和虚拟手机。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "你可以返回首页后重试。如果任务已经开始，请先在 Standard Notes 中确认结果。",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = onReset) { Text("返回首页") }
+                    OutlinedButton(onClick = onReset) { Text("重新开始") }
                 }
             }
             TaskStage.STOPPED -> item {
-                AgentCard("任务已停止", Red) {
-                    Text("任务没有发送给虚拟手机，也没有创建笔记。")
+                AgentCard("已取消", Red) {
+                    Text("这项任务没有开始执行。")
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(onClick = onReset) { Text("返回首页") }
                 }
@@ -126,84 +160,127 @@ internal fun ConversationContent(
 
 @Composable
 private fun TaskSpecCard(task: TaskSpec) {
-    AgentCard("大模型生成的任务计划") {
-        DetailLine("用户目标", task.userGoal)
-        DetailLine("目标 App", task.targetApp)
-        DetailLine("识别出的操作", task.intent.displayName())
-        DetailLine("标题", task.noteTitle)
-        DetailLine("正文", task.noteBody)
-        Text("执行步骤", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
-        task.steps.sortedBy(TaskStep::order).forEach { step ->
-            StatusLine("${step.order}. ${step.action.displayName()}", BrandBlue)
-            Spacer(Modifier.height(6.dp))
+    AgentCard("我准备这样做") {
+        DetailLine("你的目标", task.userGoal)
+        DetailLine("使用应用", task.targetApp)
+        DetailLine("笔记标题", task.noteTitle)
+        DetailLine("笔记内容", task.noteBody)
+        Text("计划步骤", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(8.dp))
+        val orderedSteps = task.steps.sortedBy(TaskStep::order)
+        orderedSteps.forEachIndexed { index, step ->
+            PlanStep(step.order, step.action.displayName())
+            if (index < orderedSteps.lastIndex) Spacer(Modifier.height(8.dp))
         }
-        Spacer(Modifier.height(4.dp))
-        DetailLine("安全限制", "不删除、不分享、不修改账号")
+        Spacer(Modifier.height(14.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Text(
+                "这次只会新建笔记，不会删除、分享或更改账号。",
+                modifier = Modifier.padding(12.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 
 @Composable
 private fun ConfirmationCard(
-    state: TaskState,
     task: TaskSpec,
     onConfirm: (String) -> Unit,
     onStop: () -> Unit,
 ) {
-    AgentCard("需要你确认") {
-        Text("将在 Standard Notes 测试账号中新建一条真实笔记。是否按上面的内容创建？")
-        Spacer(Modifier.height(12.dp))
-        when (state.stage) {
-            TaskStage.WAITING_CONFIRMATION -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { onConfirm(task.taskVersion) }) { Text("确认并执行") }
-                OutlinedButton(onClick = onStop) { Text("停止任务") }
-            }
-            TaskStage.RUNNING, TaskStage.RESULT -> StatusLine("已确认这一个版本的任务", Green)
-            else -> Unit
+    AgentCard("确认后开始") {
+        Text("将在 Standard Notes 新建这条笔记。请确认内容是否正确。")
+        Spacer(Modifier.height(14.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Button(
+                onClick = { onConfirm(task.taskVersion) },
+                modifier = Modifier.weight(1f),
+            ) { Text("确认并开始") }
+            OutlinedButton(onClick = onStop, modifier = Modifier.weight(1f)) { Text("暂不执行") }
         }
     }
 }
 
 @Composable
-private fun RunningCard(task: TaskSpec) {
-    AgentCard("执行进度") {
+private fun RunningCard() {
+    AgentCard("正在处理") {
+        Text("我正在独立工作空间中创建笔记，你可以继续使用这台手机。")
+        Spacer(Modifier.height(14.dp))
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
-        StatusLine("独立虚拟手机已收到任务", Green)
-        task.steps.sortedBy(TaskStep::order).forEach { step ->
-            Spacer(Modifier.height(8.dp))
-            StatusLine("正在执行：${step.action.displayName()}", BrandBlue)
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("任务发送后不提供中途停止，避免界面停在不确定状态。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            "完成后会在这里显示结果。",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
 @Composable
-private fun ResultCard(state: TaskState, onReset: () -> Unit) {
-    AgentCard("真实任务已完成", Green) {
-        Text(state.message)
+private fun ResultCard(task: TaskSpec, onReset: () -> Unit) {
+    AgentCard("笔记已创建", Green) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = Green,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("《${task.noteTitle}》已保存到 Standard Notes。")
+        }
         Spacer(Modifier.height(10.dp))
-        StatusLine("执行端已重新读取标题和正文并确认一致", Green)
-        Spacer(Modifier.height(12.dp))
-        OutlinedButton(onClick = onReset) { Text("开始新任务") }
+        Text(
+            "标题和内容已经核对。",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(14.dp))
+        OutlinedButton(onClick = onReset) { Text("继续添加") }
     }
-}
-
-private fun TaskIntent.displayName(): String = when (this) {
-    TaskIntent.CREATE_NOTE -> "创建笔记"
 }
 
 private fun StepAction.displayName(): String = when (this) {
-    StepAction.LAUNCH_APP -> "打开目标 App"
+    StepAction.LAUNCH_APP -> "打开 Standard Notes"
     StepAction.CREATE_NOTE -> "创建笔记并填写内容"
-    StepAction.VERIFY_NOTE -> "重新读取并核对结果"
+    StepAction.VERIFY_NOTE -> "检查标题和内容"
+}
+
+@Composable
+private fun PlanStep(order: Int, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Surface(
+            modifier = Modifier.size(28.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = CircleShape,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    order.toString(),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable
 private fun DetailLine(label: String, value: String) {
     Text(label, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
     Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(10.dp))
 }
 
 @Composable
@@ -211,7 +288,7 @@ private fun UserMessage(request: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
             modifier = Modifier.fillMaxWidth(0.86f),
-            color = BrandBlue,
+            color = MaterialTheme.colorScheme.primary,
             shape = RoundedCornerShape(20.dp, 20.dp, 4.dp, 20.dp),
         ) {
             Text(request, modifier = Modifier.padding(16.dp), color = Color.White, style = MaterialTheme.typography.bodyLarge)
@@ -227,8 +304,8 @@ private fun AgentCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE3E7EF)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         shape = RoundedCornerShape(18.dp),
     ) {
@@ -241,14 +318,5 @@ private fun AgentCard(
             Spacer(Modifier.height(12.dp))
             content()
         }
-    }
-}
-
-@Composable
-private fun StatusLine(text: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(7.dp).background(color, CircleShape))
-        Spacer(Modifier.width(8.dp))
-        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
     }
 }

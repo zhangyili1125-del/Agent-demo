@@ -76,7 +76,7 @@ class TaskApiClient(
                 ?: "{}"
             val response = JSONObject(responseText)
             if (responseCode !in 200..299 || response.optBoolean("success") == false && response.has("success")) {
-                error(response.optString("message", "电脑端返回了未知错误"))
+                error(response.optString("message", "任务服务暂时遇到问题，请稍后重试"))
             }
             return response
         } finally {

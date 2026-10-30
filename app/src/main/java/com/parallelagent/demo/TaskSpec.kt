@@ -136,7 +136,7 @@ class RemoteTaskInterpreter(
     override suspend fun interpret(request: String): InterpretationResult =
         apiClient.interpret(request).getOrElse { error ->
             InterpretationResult.Unsupported(
-                error.message ?: "无法连接电脑上的大模型理解服务。",
+                error.message ?: "暂时无法连接任务服务，请稍后重试。",
             )
         }
 }
