@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -287,7 +288,7 @@ private fun DetailLine(label: String, value: String) {
 private fun UserMessage(request: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.86f),
+            modifier = Modifier.widthIn(max = 320.dp),
             color = MaterialTheme.colorScheme.primary,
             shape = RoundedCornerShape(20.dp, 20.dp, 4.dp, 20.dp),
         ) {
